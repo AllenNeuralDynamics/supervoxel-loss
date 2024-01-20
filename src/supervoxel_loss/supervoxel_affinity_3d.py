@@ -34,7 +34,7 @@ class SuperVoxelAffinity(nn.Module):
         device=0,
         return_cnts=False,
     ):
-                """
+        """
         Constructs a SuperVoxelLoss object.
 
         Parameters
