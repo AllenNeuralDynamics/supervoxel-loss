@@ -189,8 +189,8 @@ def get_foreground(img):
     ----------
     
     """
-    x, y, z = np.nonzero(img)
-    return set((x[i], y[i], z[i]) for i in range(len(x)))
+    x, y = np.nonzero(img)
+    return set((x[i], y[i]) for i in range(len(x)))
 
 
 def get_nbs(xyz, shape):
