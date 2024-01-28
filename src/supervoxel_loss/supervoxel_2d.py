@@ -21,13 +21,13 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 sigmoid = nn.Sigmoid()
 
 
+
 class SuperVoxel(nn.Module):
     """
     Supervoxel-based topological loss function for training affinity-based
     neural networks to perform instance segmentation.
 
     """
-
     def __init__(
         self,
         alpha=0.5,
@@ -47,7 +47,7 @@ class SuperVoxel(nn.Module):
             provided, you must set "reduction=None" so that the 
             The default value is None. The default value is 0.
         device : int, optional
-            Device (e.g. cpu or gpu id) used to train model.
+            Device (e.g. cpu or gpu id) used to train model. The default is 0.
 
         Returns
         -------
