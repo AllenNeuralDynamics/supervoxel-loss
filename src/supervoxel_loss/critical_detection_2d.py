@@ -10,7 +10,7 @@ Computes positively and negatively critical components in 3d space.
 
 import numpy as np
 from random import sample
-from scipy.ndimage import label as label_cpu
+from scipy.ndimage import label
 
 
 def detect_critical(y_target, y_pred):
@@ -31,10 +31,9 @@ def detect_critical(y_target, y_pred):
 
     """
     y_mistakes = get_false_negatives(y_target, y_pred)
-    y_target_minus_ccps, _ = get_ccps(y_target * (1 - y_mistakes))
-    return run_detection(
-        y_target, y_mistakes, y_target_minus_ccps
-    )
+    y_target_minus_ccps, _ = label(y_target * (1 - y_mistakes))
+    critical_mask = run_detection(y_target, y_mistakes, y_target_minus_ccps)
+    return critical_mask
 
 
 def run_detection(y_target, y_mistakes, y_minus_ccps):
@@ -59,7 +58,6 @@ def run_detection(y_target, y_mistakes, y_minus_ccps):
         Binary mask where critical components are marked with a "1".
 
     """
-    num_criticals = 0
     critical_mask = np.zeros(y_target.shape)
     foreground = get_foreground(y_mistakes)
     while len(foreground) > 0:
@@ -70,13 +68,10 @@ def run_detection(y_target, y_mistakes, y_minus_ccps):
         foreground = foreground.difference(visited)
         if is_critical:
             critical_mask += component_mask
-            num_criticals += 1
-    return critical_mask, num_criticals
+    return critical_mask
 
 
-def get_component(
-    y_target, y_mistakes, y_minus_ccps, xyz_r
-):
+def get_component(y_target, y_mistakes, y_minus_ccps, xyz_r):
     """
     Performs a BFS to extract a single connected component from a given root.
 
@@ -146,41 +141,6 @@ def get_false_negatives(y_target, y_pred):
     return false_negatives.astype(int)
 
 
-def get_ccps(arr):
-    """
-    Computes connected components using routine from SciPy library.
-
-    Parameters
-    ----------
-    arr : numpy.ndarray
-        Array.
-
-    Returns
-    -------
-    numpy.ndarray
-        Connected components labeling.
-
-    """
-    return label_cpu(arr, structure=get_kernel())
-
-
-def get_kernel():
-    """
-    Gets the connectivity kernel used in the connected components computation.
-
-    Parmaters
-    ---------
-    None
-
-    Returns
-    -------
-    numpy.ndarray
-        Connectivity kernel used in the connected components computation.
-
-    """
-    return np.ones((3, 3))
-
-
 def get_foreground(img):
     """
     Computes the foreground of an image.
@@ -189,8 +149,11 @@ def get_foreground(img):
     ----------
     
     """
-    x, y = np.nonzero(img)
-    return set((x[i], y[i]) for i in range(len(x)))
+    try:
+        x, y = np.nonzero(img)
+        return set((x[i], y[i]) for i in range(len(x)))
+    except:
+        return set()
 
 
 def get_nbs(xyz, shape):
@@ -210,14 +173,9 @@ def get_nbs(xyz, shape):
         Numpy array of shape (k, 2) with k <= 8 representing the coordinates of all 8 neighbors.
 
     """
-    x_offsets, y_offsets = np.meshgrid(
-        [-1, 0, 1], [-1, 0, 1], indexing="ij"
-    )
+    x_offsets, y_offsets = np.meshgrid([-1, 0, 1], [-1, 0, 1], indexing="ij")
     nbs = np.column_stack(
-        [
-            (xyz[0] + y_offsets).ravel(),
-            (xyz[1] + x_offsets).ravel(),
-        ]
+        [(xyz[0] + y_offsets).ravel(), (xyz[1] + x_offsets).ravel()]
     )
     mask = np.all((nbs >= 0) & (nbs < np.array(shape)), axis=1)
     return map(tuple, list(nbs[mask]))

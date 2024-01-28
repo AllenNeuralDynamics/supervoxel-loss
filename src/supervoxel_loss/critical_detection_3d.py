@@ -32,9 +32,7 @@ def detect_critical(y_target, y_pred):
     """
     y_mistakes = get_false_negatives(y_target, y_pred)
     y_target_minus_ccps, _ = get_ccps(y_target * (1 - y_mistakes))
-    return run_detection(
-        y_target, y_mistakes, y_target_minus_ccps
-    )
+    return run_detection(y_target, y_mistakes, y_target_minus_ccps)
 
 
 def run_detection(y_target, y_mistakes, y_minus_ccps):
@@ -74,9 +72,7 @@ def run_detection(y_target, y_mistakes, y_minus_ccps):
     return critical_mask, num_criticals
 
 
-def get_component(
-    y_target, y_mistakes, y_minus_ccps, xyz_r
-):
+def get_component(y_target, y_mistakes, y_minus_ccps, xyz_r):
     """
     Performs a BFS to extract a single connected component from a given root.
 
