@@ -24,6 +24,7 @@ class SuperVoxelAffinity(nn.Module):
     neural networks to perform instance segmentation.
 
     """
+
     def __init__(
         self,
         edges,
@@ -70,7 +71,7 @@ class SuperVoxelAffinity(nn.Module):
         super(SuperVoxelAffinity, self).__init__()
         self.accuracy_threshold = accuracy_threshold
         self.alpha = alpha
-        self.beta = beta    
+        self.beta = beta
         self.decoder = SuperVoxelAffinity.Decoder(edges)
         self.device = device
         self.edges = list(edges)
@@ -85,7 +86,9 @@ class SuperVoxelAffinity(nn.Module):
         stats = {"Splits": [], "Merges": []}
         for i in range(preds.size(0)):
             # Check accuracy
-            precision = self.get_precision(preds[i, ...], target_labels[i, ...])
+            precision = self.get_precision(
+                preds[i, ...], target_labels[i, ...]
+            )
             if precision < self.accuracy_threshold:
                 loss += self.voxel_loss(preds[i, ...], target_labels[i, ...])
                 continue
@@ -144,7 +147,7 @@ class SuperVoxelAffinity(nn.Module):
         pred_affs = binarize(toCPU(preds, return_numpy=True))
         iterator = run_watershed(pred_affs, [0])
         return next(iterator).astype(int)
-        
+
     def get_pred_affs(self, preds):
         return [self.decoder(preds, i) for i in range(3)]
 
@@ -185,9 +188,8 @@ class SuperVoxelAffinity(nn.Module):
             num_channels = x.size(-4)
             assert num_channels == len(self.edges)
             assert i < num_channels and i >= 0
-            return get_pair_first(
-                x[..., [i], :, :, :], self.edges[i]
-            )
+            return get_pair_first(x[..., [i], :, :, :], self.edges[i])
+
 
 def toCPU(arr, return_numpy=False):
     if return_numpy:
@@ -211,9 +213,12 @@ def get_pair_first(arr, edge):
     edge = np.array(edge)
     os1 = np.maximum(edge, 0)
     os2 = np.maximum(-edge, 0)
-    ret = arr[..., os1[0]:shape[0]-os2[0],
-                   os1[1]:shape[1]-os2[1],
-                   os1[2]:shape[2]-os2[2]]
+    ret = arr[
+        ...,
+        os1[0] : shape[0] - os2[0],
+        os1[1] : shape[1] - os2[1],
+        os1[2] : shape[2] - os2[2],
+    ]
     return ret
 
 
@@ -223,10 +228,16 @@ def get_pair(arr, edge):
     os1 = np.maximum(edge, 0)
     os2 = np.maximum(-edge, 0)
 
-    arr1 = arr[..., os1[0]:shape[0]-os2[0],
-                    os1[1]:shape[1]-os2[1],
-                    os1[2]:shape[2]-os2[2]]
-    arr2 = arr[..., os2[0]:shape[0]-os1[0],
-                    os2[1]:shape[1]-os1[1],
-                    os2[2]:shape[2]-os1[2]]    
+    arr1 = arr[
+        ...,
+        os1[0] : shape[0] - os2[0],
+        os1[1] : shape[1] - os2[1],
+        os1[2] : shape[2] - os2[2],
+    ]
+    arr2 = arr[
+        ...,
+        os2[0] : shape[0] - os1[0],
+        os2[1] : shape[1] - os1[1],
+        os2[2] : shape[2] - os1[2],
+    ]
     return arr1, arr2
