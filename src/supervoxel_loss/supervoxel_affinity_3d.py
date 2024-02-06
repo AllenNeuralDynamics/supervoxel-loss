@@ -12,10 +12,13 @@ networks to perform instance segmentation.
 import numpy as np
 import torch
 import torch.nn as nn
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from supervoxel_loss.critical_detection_3d import detect_critical
 from toolz.itertoolz import last
-from waterz import agglomerate as run_watershed
+from tifffile import imwrite
+from time import time
 from torch.autograd import Variable
+from waterz import agglomerate as run_watershed
 
 
 class SuperVoxelAffinity(nn.Module):
@@ -28,11 +31,11 @@ class SuperVoxelAffinity(nn.Module):
     def __init__(
         self,
         edges,
-        accuracy_threshold=0.5,
-        alpha=10.0,
-        beta=10.0,
+        alpha=0.5,
+        beta=0.5,
         criterion=None,
         device=0,
+        pred_threshold=0.5,
         return_cnts=False,
     ):
         """
@@ -41,27 +44,23 @@ class SuperVoxelAffinity(nn.Module):
         Parameters
         ----------
         edges : list[tuple[int]]
-            Edge affinities learned by model (e.g. edges=[[1, 0, 0], 
+            Edge affinities learned by model (e.g. edges=[[1, 0, 0],
             [0, 1, 0], [0, 0, 1]]).
-        accuracy_threshold : float, optional
-            Minimum precision obtained by model which is required to compute
-            topological terms in loss. The default value is 0.5.
+
         alpha : float, optional
-            Weight penalty applied to negatively critical components.
-            The default value is 10.0.
+
         beta : float, optional
-            Weight penalty appplied to positively critical components.
-            The default value is 10.0.
+
         criterion : torch.nn.modules.loss
             Loss function that is used to penalize critical components. If
-            provided, you must set "reduction=None" so that the 
-            The default value is None. The default value is 0.
+            provided, must set "reduction=None". The default is None.
         device : int, optional
             Device (e.g. cpu or gpu id) used to train model.
+        pred_threshold : float, optional
+
         return_cnts : bool, optional
             Indicates whether to return the number of negatively and
-            positively critical components.
-            The default value is False.
+            positively critical components. The default is False.
 
         Returns
         -------
@@ -69,87 +68,78 @@ class SuperVoxelAffinity(nn.Module):
 
         """
         super(SuperVoxelAffinity, self).__init__()
-        self.accuracy_threshold = accuracy_threshold
         self.alpha = alpha
         self.beta = beta
         self.decoder = SuperVoxelAffinity.Decoder(edges)
         self.device = device
         self.edges = list(edges)
+        self.pred_threshold = pred_threshold
         self.return_cnts = return_cnts
         if criterion:
             self.criterion = criterion
         else:
             self.criterion = nn.BCEWithLogitsLoss(reduction="none")
 
-    def forward(self, preds, target_labels):
+    def forward(self, pred_affs, target_labels):
         loss = 0
-        stats = {"Splits": [], "Merges": []}
-        for i in range(preds.size(0)):
-            # Check accuracy
-            precision = self.get_precision(
-                preds[i, ...], target_labels[i, ...]
-            )
-            if precision < self.accuracy_threshold:
-                loss += self.voxel_loss(preds[i, ...], target_labels[i, ...])
-                continue
-
-            # Detect critical components
-            pred_labels_i = self.get_pred_labels(preds[i, ...])
-            target_labels_i = np.array(target_labels[i, 0, ...], dtype=int)
-            if self.alpha > 0:
-                neg_critical_mask, num_splits = detect_critical(
-                    target_labels_i, pred_labels_i
-                )
-                stats["Splits"].append(num_splits)
-
-            if self.beta > 0:
-                pos_critical_mask, num_merges = detect_critical(
-                    pred_labels_i, target_labels_i
-                )
-                stats["Merges"].append(num_merges)
-
-            # Compute supervoxel loss
-            neg_critical_mask = self.toGPU(neg_critical_mask)
-            pos_critical_mask = self.toGPU(pos_critical_mask)
+        pred_labels = self.get_pred_labels(pred_affs)
+        masks, stats = self.get_critical_masks(pred_labels, target_labels)        
+        for i in range(pred_affs.size(0)):
+            mask_i = self.toGPU(masks[i, ...])
             target_labels_i = self.toGPU(target_labels[i, ...])
             for j, edge in enumerate(self.edges):
-                # Get affinities
+                # Compute affs
+                pred_affs_j = self.decoder(pred_affs[i, ...], j)
                 target_affs_j = get_aff(target_labels_i, edge)
-                pred_affs_j = self.decoder(preds[i, ...], j)
-                neg_aff_j = get_aff(neg_critical_mask, edge)
-                pos_aff_j = get_aff(pos_critical_mask, edge)
+                mask_aff_j = get_aff(mask_i, edge)
 
-                # Compute terms
-                loss_i = self.criterion(pred_affs_j, target_affs_j)
-                if self.alpha > 0:
-                    neg_critical_loss = self.alpha * neg_aff_j * loss_i
-                if self.beta > 0:
-                    pos_critical_loss = self.beta * pos_aff_j * loss_i
-
-                # Sum terms
-                if self.alpha > 0:
-                    loss_i += neg_critical_loss
-                if self.beta > 0:
-                    loss_i += pos_critical_loss
-                loss += 100 * loss_i.mean()
-        stats["Splits"] = np.mean(stats["Splits"])
-        stats["Merges"] = np.mean(stats["Merges"])
+                # Compute loss
+                loss_j = self.criterion(pred_affs_j, target_affs_j)
+                term_1 = (1 - self.alpha) * loss_j
+                term_2 = self.alpha * mask_aff_j * loss_j
+                loss += (term_1 + term_2).mean()
         return loss, stats
 
-    def get_precision(self, preds, target_labels):
-        target = get_aff(target_labels, self.edges[0])
-        pred = toCPU(self.decoder(preds, 0))
-        true_positive = torch.sum((pred > 0) & (target > 0)).item()
-        false_positive = torch.sum((pred > 0) & (target == 0)).item()
-        return true_positive / max((true_positive + false_positive), 1e-8)
+    def binarize(self, pred):
+        return (pred > self.pred_threshold).astype(np.float32)
 
-    def get_pred_labels(self, preds):
-        pred_affs = binarize(toCPU(preds, return_numpy=True))
-        iterator = run_watershed(pred_affs, [0])
+    def get_pred_labels(self, pred_affs):
+        pred_affs = toCPU(pred_affs, return_numpy=True)
+        pred_labels = []
+        for i in range(pred_affs.shape[0]):
+            pred_labels.append(self.to_labels(pred_affs[i, ...]))
+        return pred_labels
+
+    def to_labels(self, pred_affs):
+        iterator = run_watershed(self.binarize(pred_affs), [0])
         return next(iterator).astype(int)
 
-    def get_pred_affs(self, preds):
-        return [self.decoder(preds, i) for i in range(3)]
+    def get_critical_masks(self, preds, targets):
+        processes = []
+        stats = {"Splits": 0, "Merges": 0}
+        masks = np.zeros((len(preds),) + preds[0].shape)
+        targets = np.array(targets, dtype=int)
+        with ProcessPoolExecutor() as executor:
+            for i in range(len(preds)):
+                processes.append(
+                    executor.submit(
+                        get_mask, targets[i, 0, ...], preds[i], i, "neg"
+                    )
+                )
+                processes.append(
+                    executor.submit(
+                        get_mask, preds[i], targets[i, 0, ...], i, "pos"
+                    )
+                )
+            for process in as_completed(processes):
+                i, mask_i, n_criticals, neg_or_pos = process.result()
+                if neg_or_pos == "neg":
+                    masks[i, ...] += self.beta * mask_i
+                    stats["Splits"] += n_criticals / len(preds)
+                else:
+                    masks[i, ...] += (1 - self.beta) * mask_i
+                    stats["Merges"] += n_criticals / len(preds)
+        return self.toGPU(masks), stats
 
     def toGPU(self, arr):
         """
@@ -170,15 +160,6 @@ class SuperVoxelAffinity(nn.Module):
             arr = torch.from_numpy(arr)
         return Variable(arr).to(self.device, dtype=torch.float32)
 
-    def voxel_loss(self, preds, target_labels):
-        loss = 0
-        target_labels = self.toGPU(target_labels)
-        for j, edge in enumerate(self.edges):
-            target_affs_j = get_aff(target_labels, edge)
-            pred_affs_j = self.decoder(preds, j)
-            loss += 100 * self.criterion(pred_affs_j, target_affs_j).mean()
-        return loss
-
     class Decoder(nn.Module):
         def __init__(self, edges):
             super(SuperVoxelAffinity.Decoder, self).__init__()
@@ -193,19 +174,20 @@ class SuperVoxelAffinity(nn.Module):
 
 def toCPU(arr, return_numpy=False):
     if return_numpy:
-        return np.array(arr.cpu().detach())
+        return np.array(arr.cpu().detach(), np.float32)
     else:
         return arr.detach().cpu()
+
+
+def get_mask(target, pred, process_id, neg_or_pos):
+    mask, n_criticals = detect_critical(target, pred)
+    return process_id, mask, n_criticals, neg_or_pos
 
 
 def get_aff(labels, edge):
     o1, o2 = get_pair(labels, edge)
     ret = (o1 == o2) & (o1 != 0)
     return ret.type(labels.type())
-
-
-def binarize(arr, threshold=0):
-    return (arr > threshold).astype(np.float32)
 
 
 def get_pair_first(arr, edge):

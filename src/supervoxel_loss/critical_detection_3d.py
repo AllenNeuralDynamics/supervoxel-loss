@@ -57,8 +57,8 @@ def run_detection(y_target, y_mistakes, y_minus_ccps):
         Binary mask where critical components are marked with a "1".
 
     """
-    num_criticals = 0
-    critical_mask = np.zeros(y_target.shape)
+    n_criticals = 0
+    critical_mask = np.zeros(y_target.shape, dtype=bool)
     foreground = get_foreground(y_mistakes)
     while len(foreground) > 0:
         xyz_r = sample(foreground, 1)[0]
@@ -68,8 +68,8 @@ def run_detection(y_target, y_mistakes, y_minus_ccps):
         foreground = foreground.difference(visited)
         if is_critical:
             critical_mask += component_mask
-            num_criticals += 1
-    return critical_mask, num_criticals
+            n_criticals += 1
+    return critical_mask, n_criticals
 
 
 def get_component(y_target, y_mistakes, y_minus_ccps, xyz_r):
@@ -86,7 +86,7 @@ def get_component(y_target, y_mistakes, y_minus_ccps, xyz_r):
         Connected components of the groundtruth segmentation "minus" the
         mistakes mask.
     xyz_r : tuple[int]
-        Indices of root node. 
+        Indices of root node.
 
     Returns
     -------
@@ -98,7 +98,7 @@ def get_component(y_target, y_mistakes, y_minus_ccps, xyz_r):
         Indication of whether connected component is critical.
 
     """
-    mask = np.zeros(y_target.shape)
+    mask = np.zeros(y_target.shape, dtype=bool)
     collisions = dict()
     is_critical = False
     queue = [tuple(xyz_r)]
@@ -183,7 +183,7 @@ def get_foreground(img):
 
     Parameters
     ----------
-    
+
     """
     x, y, z = np.nonzero(img)
     return set((x[i], y[i], z[i]) for i in range(len(x)))

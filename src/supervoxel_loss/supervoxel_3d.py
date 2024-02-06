@@ -23,48 +23,58 @@ class SuperVoxelLoss(nn.Module):
     """
 
     def __init__(
-        self, alpha=10.0, beta=10.0, criterion=None, return_cnts=False
+        self,
+        alpha=0.5,
+        beta=0.5,
+        criterion=None,
+        device=0,
+        pred_threshold=0.5,
+        return_mask=False,
     ):
         """
         Constructs a SuperVoxelLoss object.
 
         Parameters
         ----------
-        alpha : float, optional
-            Weight penalty applied to negatively critical components.
-            The default value is 10.0.
-        beta : float, optional
-            Weight penalty appplied to positively critical components.
-            The default value is 10.0.
+        alpha : float
+
+        beta : float
+
         criterion : torch.nn.modules.loss
-            Loss function that is used to penalize critical components.
-            The default value is None.
-        return_cnts : bool, optional
-            Indicates whether to return the number of negatively and
-            positively critical components.
-            The default value is False.
+            Loss function that is used to penalize critical components. If
+            provided, set "reduction=None". The default value is None.
+        device : int, optional
+            Device (e.g. cpu or gpu id) used to train model. The default is 0.
+        pred_threshold : float
+
+        return_mask : bool
+            Indication of whether to binary mask that indicates which voxels
+            correspond to critical components.
 
         Returns
         -------
         None
 
         """
-        super(SuperVoxelLoss, self).__init__()
+        super(SuperVoxel, self).__init__()
         self.alpha = alpha
         self.beta = beta
+        self.device = device
+        self.return_mask = return_mask
+        self.threshold = pred_threshold
         if criterion:
             self.criterion = criterion
         else:
             self.criterion = nn.BCEWithLogitsLoss(reduction="none")
 
-    def forward(self, affs_pred, y_pred, y_target):
+    def forward(self, pred_affs, target_labels):
         """
         Computes the loss with respect to "y_pred" and y_target".
 
         Parameters
         ----------
         y_pred : torch.Tensor
-            Predicted segmentation.
+
         y_target : torch.Tensor
             Target segmentation.
 

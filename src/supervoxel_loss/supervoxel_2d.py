@@ -21,13 +21,13 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 sigmoid = nn.Sigmoid()
 
 
-
 class SuperVoxel(nn.Module):
     """
-    Supervoxel-based topological loss function for training affinity-based
-    neural networks to perform instance segmentation.
+    Supervoxel-based topological loss function for training neural networks to
+    perform instance segmentation on 2D images.
 
     """
+
     def __init__(
         self,
         alpha=0.5,
@@ -42,12 +42,20 @@ class SuperVoxel(nn.Module):
 
         Parameters
         ----------
+        alpha : float
+
+        beta : float
+
         criterion : torch.nn.modules.loss
             Loss function that is used to penalize critical components. If
-            provided, you must set "reduction=None" so that the 
-            The default value is None. The default value is 0.
+            provided, set "reduction=None". The default value is None.
         device : int, optional
             Device (e.g. cpu or gpu id) used to train model. The default is 0.
+        pred_threshold : float
+
+        return_mask : bool
+            Indication of whether to binary mask that indicates which voxels
+            correspond to critical components.
 
         Returns
         -------

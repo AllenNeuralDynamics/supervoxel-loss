@@ -85,7 +85,7 @@ def get_component(y_target, y_mistakes, y_minus_ccps, xyz_r):
         Connected components of the groundtruth segmentation "minus" the
         mistakes mask.
     xyz_r : tuple[int]
-        Indices of root node. 
+        Indices of root node.
 
     Returns
     -------
@@ -147,7 +147,7 @@ def get_foreground(img):
 
     Parameters
     ----------
-    
+
     """
     try:
         x, y = np.nonzero(img)
