@@ -56,7 +56,7 @@ class SuperVoxelLoss(nn.Module):
         None
 
         """
-        super(SuperVoxel, self).__init__()
+        super(SuperVoxelLoss, self).__init__()
         self.alpha = alpha
         self.beta = beta
         self.device = device
@@ -67,7 +67,7 @@ class SuperVoxelLoss(nn.Module):
         else:
             self.criterion = nn.BCEWithLogitsLoss(reduction="none")
 
-    def forward(self, pred_affs, target_labels):
+    def forward(self, y_pred, y_target):
         """
         Computes the loss with respect to "y_pred" and y_target".
 
@@ -81,7 +81,7 @@ class SuperVoxelLoss(nn.Module):
         Returns
         -------
         torch.Tensor
-            Value of loss function.
+            Computed loss for the given batch.
 
         """
         # Detect critical components

@@ -9,16 +9,14 @@ networks to perform instance segmentation.
 
 """
 
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from scipy.ndimage import label
+from supervoxel_loss.critical_detection_2d import detect_critical
+from torch.autograd import Variable
+
 import numpy as np
 import torch
 import torch.nn as nn
-from scipy.ndimage import label
-from supervoxel_loss.critical_detection_2d import detect_critical
-from time import time
-from torch.autograd import Variable
-from concurrent.futures import ProcessPoolExecutor, as_completed
-
-sigmoid = nn.Sigmoid()
 
 
 class SuperVoxel(nn.Module):

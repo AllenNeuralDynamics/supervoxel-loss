@@ -4,50 +4,53 @@ Created on Sun November 17 22:00:00 2023
 @author: Anna Grim
 @email: anna.grim@alleninstitute.org
 
-Computes positively and negatively critical components in 3d space.
+
+Computes positively and negatively critical components for 3D images.
 
 """
 
-import numpy as np
 from random import sample
-from scipy.ndimage import label as label_cpu
+from scipy.ndimage import label
+
+import numpy as np
 
 
 def detect_critical(y_target, y_pred):
     """
-    Detects negatively critical components.
+    Detects negatively critical components for 3D images.
 
     Parameters
     ----------
     y_target : numpy.ndarray
-        Groundtruth segmentation where each segment as a unique label.
+        Groundtruth segmentation where each segment has a unique label.
     y_pred : numpy.ndarray
-        Predicted segmentation where each segment as a unique label.
+        Predicted segmentation where each segment has a unique label.
 
     Returns
     -------
-    np.ndarray
+    numpy.ndarray
         Binary mask where critical components are marked with a "1".
 
     """
-    y_mistakes = get_false_negatives(y_target, y_pred)
-    y_target_minus_ccps, _ = get_ccps(y_target * (1 - y_mistakes))
-    return run_detection(y_target, y_mistakes, y_target_minus_ccps)
+    y_mistakes = false_negative_mask(y_target, y_pred)
+    y_target_minus_mistakes, _ = label(y_target * (1 - y_mistakes))
+    return run_detection(y_target, y_mistakes, y_target_minus_mistakes)
 
 
-def run_detection(y_target, y_mistakes, y_minus_ccps):
+def run_detection(y_target, y_mistakes, y_minus_mistakes):
     """
-    Computes negatively critical components by running a BFS on the
-    foreground. Here, a root is sampled and then passed into a subroutine
-    that performs the BFS to extract a single connected component.
+    Detcts negatively critical components by performing BFS on the
+    foreground of "y_mistakes". A root voxel is sampled from the foreground,
+    and BFS is used to extract the connected component. Criticality conditions
+    are checked once the BFS reaches the boundary of the component.
 
     Parameters
     ----------
     y_target : numpy.ndarray
-        Groundtruth segmentation where each segment as a unique label.
+        Groundtruth segmentation where each segment has a unique label.
     y_mistakes : numpy.ndarray
         Binary mask where incorect voxel predictions are marked with a "1".
-    y_minus_ccps : numpy.ndarray
+    y_minus_mistakes : numpy.ndarray
         Connected components of the groundtruth segmentation "minus" the
         mistakes mask.
 
@@ -62,8 +65,8 @@ def run_detection(y_target, y_mistakes, y_minus_ccps):
     foreground = get_foreground(y_mistakes)
     while len(foreground) > 0:
         xyz_r = sample(foreground, 1)[0]
-        component_mask, visited, is_critical = get_component(
-            y_target, y_mistakes, y_minus_ccps, xyz_r
+        component_mask, visited, is_critical = extract_component(
+            y_target, y_mistakes, y_minus_mistakes, xyz_r
         )
         foreground = foreground.difference(visited)
         if is_critical:
@@ -72,30 +75,31 @@ def run_detection(y_target, y_mistakes, y_minus_ccps):
     return critical_mask, n_criticals
 
 
-def get_component(y_target, y_mistakes, y_minus_ccps, xyz_r):
+def extract_component(y_target, y_mistakes, y_minus_mistakes, xyz_r):
     """
-    Performs a BFS to extract a single connected component from a given root.
+    Extracts the connected component corresponding to the given root by
+    performing a BFS.
 
     Parameters
     ----------
     y_target : numpy.ndarray
-        Groundtruth segmentation where each segment as a unique label.
+        Groundtruth segmentation where each segment has a unique label.
     y_mistakes : numpy.ndarray
         Binary mask where incorect voxel predictions are marked with a "1".
-    y_minus_ccps : numpy.ndarray
+    y_minus_mistakes : numpy.ndarray
         Connected components of the groundtruth segmentation "minus" the
         mistakes mask.
-    xyz_r : tuple[int]
-        Indices of root node.
+    xyz_r : Tuple[int]
+        Voxel coordinate of root.
 
     Returns
     -------
-    mask : numpy.ndarray
-        Binary mask where critical component is marked with a "1".
-    visited : set[tuple[int]]
-        Set of indices visited during the BFS
-    is_critical : bool
-        Indication of whether connected component is critical.
+    numpy.ndarray
+        Binary mask where connected component is marked with a "1".
+    Set[Tuple[int]]
+        Voxels visited during the BFS
+    bool
+        Indication of whether the connected component is critical.
 
     """
     mask = np.zeros(y_target.shape, dtype=bool)
@@ -112,77 +116,51 @@ def get_component(y_target, y_mistakes, y_minus_ccps, xyz_r):
                 if y_mistakes[xyz_j] == 1:
                     queue.append(xyz_j)
                 elif not is_critical:
-                    if y_target[xyz_j] not in collisions.keys():
-                        collisions[y_target[xyz_j]] = y_minus_ccps[xyz_j]
-                    elif collisions[y_target[xyz_j]] != y_minus_ccps[xyz_j]:
+                    key = y_target[xyz_j]
+                    if key not in collisions.keys():
+                        collisions[key] = y_minus_mistakes[xyz_j]
+                    elif collisions[key] != y_minus_mistakes[xyz_j]:
                         is_critical = True
     if y_target[xyz_r] not in collisions.keys():
         is_critical = True
     return mask, visited, is_critical
 
 
-def get_false_negatives(y_target, y_pred):
+def false_negative_mask(y_target, y_pred):
     """
     Computes false negative mask.
 
     Parameters
     ----------
     y_target : numpy.ndarray
-        Groundtruth segmentation where each segment as a unique label.
+        Groundtruth segmentation where each segment has a unique label.
     y_pred : numpy.ndarray
-        Predicted segmentation where each segment as a unique label.
+        Predicted segmentation where each segment has a unique label.
 
     Returns
     -------
-    false_negatives : numpy.ndarray
-        Binary mask where false negative mistake is marked with a "1".
+    numpy.ndarray
+        Binary mask where false negative mistakes are marked with a "1".
 
     """
     false_negatives = y_target.astype(bool) * (1 - y_pred.astype(bool))
     return false_negatives.astype(int)
 
 
-def get_ccps(arr):
-    """
-    Computes connected components using routine from SciPy library.
-
-    Parameters
-    ----------
-    arr : numpy.ndarray
-        Array.
-
-    Returns
-    -------
-    numpy.ndarray
-        Connected components labeling.
-
-    """
-    return label_cpu(arr, structure=get_kernel())
-
-
-def get_kernel():
-    """
-    Gets the connectivity kernel used in the connected components computation.
-
-    Parmaters
-    ---------
-    None
-
-    Returns
-    -------
-    numpy.ndarray
-        Connectivity kernel used in the connected components computation.
-
-    """
-    return np.ones((3, 3, 3))
-
-
 def get_foreground(img):
     """
-    Computes the foreground of an image.
+    Gets the set of foreground voxels from the given image.
 
     Parameters
     ----------
+    img : numpy.ndarray
+        A 3D image to be searched.
+
+    Returns
+    -------
+    Set[Tuple[int]]
+        Set of tuples such that each is the coordinate of a voxel in the
+        foreground.
 
     """
     x, y, z = np.nonzero(img)
@@ -191,19 +169,19 @@ def get_foreground(img):
 
 def get_nbs(xyz, shape):
     """
-    Get all neighbors of a voxel in a 3D image with respect to 26-connectivity.
+    Gets all neighbors of a voxel in a 3D image using 26-connectivity.
 
     Parameters
     ----------
-    xyz : tuple[int]
-        Coordinates of the voxel.
-    image_shape : tuple[int]
-        Tuple representing the shape of the 3D image.
+    xyz : Tuple[int]
+        Coordinates of the voxel for which neighbors are to be found.
+    shape : Tuple[int]
+        Shape of the image that voxel belongs to.
 
     Returns
     -------
     np.ndarray
-        Numpy array of shape (k, 3) with k <= 26 representing the coordinates of all 26 neighbors.
+        Voxel coordinates of neighbors of the given voxel.
 
     """
     x_offsets, y_offsets, z_offsets = np.meshgrid(

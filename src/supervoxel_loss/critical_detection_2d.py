@@ -4,51 +4,52 @@ Created on Sun November 17 22:00:00 2023
 @author: Anna Grim
 @email: anna.grim@alleninstitute.org
 
-Computes positively and negatively critical components in 3d space.
+
+Computes positively and negatively critical components for 2D images.
 
 """
 
-import numpy as np
 from random import sample
 from scipy.ndimage import label
+
+import numpy as np
 
 
 def detect_critical(y_target, y_pred):
     """
-    Detects negatively critical components.
+    Detects negatively critical components for 2D images.
 
     Parameters
     ----------
     y_target : numpy.ndarray
-        Groundtruth segmentation where each segment as a unique label.
+        Groundtruth segmentation where each segment has a unique label.
     y_pred : numpy.ndarray
-        Predicted segmentation where each segment as a unique label.
+        Predicted segmentation where each segment has a unique label.
 
     Returns
     -------
-    np.ndarray
+    numpy.ndarray
         Binary mask where critical components are marked with a "1".
 
     """
-    y_mistakes = get_false_negatives(y_target, y_pred)
-    y_target_minus_ccps, _ = label(y_target * (1 - y_mistakes))
-    critical_mask = run_detection(y_target, y_mistakes, y_target_minus_ccps)
-    return critical_mask
+    y_mistakes = false_negative_mask(y_target, y_pred)
+    y_target_minus_mistakes, _ = label(y_target * (1 - y_mistakes))
+    return run_detection(y_target, y_mistakes, y_target_minus_mistakes)
 
 
-def run_detection(y_target, y_mistakes, y_minus_ccps):
+def run_detection(y_target, y_mistakes, y_minus_mistakes):
     """
-    Computes negatively critical components by running a BFS on the
-    foreground. Here, a root is sampled and then passed into a subroutine
-    that performs the BFS to extract a single connected component.
+    Computes negatively critical components by performing a BFS on the
+    foreground. A root is sampled from the foreground, and a BFS is performed
+    to extract the connected component corresponding to the root.
 
     Parameters
     ----------
     y_target : numpy.ndarray
-        Groundtruth segmentation where each segment as a unique label.
+        Groundtruth segmentation where each segment has a unique label.
     y_mistakes : numpy.ndarray
-        Binary mask where incorect voxel predictions are marked with a "1".
-    y_minus_ccps : numpy.ndarray
+        Binary mask where incorect pixel predictions are marked with a "1".
+    y_minus_mistakes : numpy.ndarray
         Connected components of the groundtruth segmentation "minus" the
         mistakes mask.
 
@@ -61,9 +62,9 @@ def run_detection(y_target, y_mistakes, y_minus_ccps):
     critical_mask = np.zeros(y_target.shape)
     foreground = get_foreground(y_mistakes)
     while len(foreground) > 0:
-        xyz_r = sample(foreground, 1)[0]
-        component_mask, visited, is_critical = get_component(
-            y_target, y_mistakes, y_minus_ccps, xyz_r
+        xy_r = sample(foreground, 1)[0]
+        component_mask, visited, is_critical = extract_component(
+            y_target, y_mistakes, y_minus_mistakes, xy_r
         )
         foreground = foreground.difference(visited)
         if is_critical:
@@ -71,70 +72,72 @@ def run_detection(y_target, y_mistakes, y_minus_ccps):
     return critical_mask
 
 
-def get_component(y_target, y_mistakes, y_minus_ccps, xyz_r):
+def extract_component(y_target, y_mistakes, y_minus_mistakes, xy_r):
     """
-    Performs a BFS to extract a single connected component from a given root.
+    Extracts the connected component corresponding to the given root by
+    performing a BFS.
 
     Parameters
     ----------
     y_target : numpy.ndarray
-        Groundtruth segmentation where each segment as a unique label.
+        Groundtruth segmentation where each segment has a unique label.
     y_mistakes : numpy.ndarray
-        Binary mask where incorect voxel predictions are marked with a "1".
-    y_minus_ccps : numpy.ndarray
+        Binary mask where incorect pixel predictions are marked with a "1".
+    y_minus_mistakes : numpy.ndarray
         Connected components of the groundtruth segmentation "minus" the
         mistakes mask.
-    xyz_r : tuple[int]
-        Indices of root node.
+    xy_r : tuple[int]
+        Pixel coordinate of root.
 
     Returns
     -------
-    mask : numpy.ndarray
-        Binary mask where critical component is marked with a "1".
-    visited : set[tuple[int]]
-        Set of indices visited during the BFS
-    is_critical : bool
-        Indication of whether connected component is critical.
+    numpy.ndarray
+        Binary mask where connected component is marked with a "1".
+    Set[Tuple[int]]
+        Pixels visited during the BFS
+    bool
+        Indication of whether the connected component is critical.
 
     """
-    mask = np.zeros(y_target.shape)
+    mask = np.zeros(y_target.shape, dtype=bool)
     collisions = dict()
     is_critical = False
-    queue = [tuple(xyz_r)]
+    queue = [tuple(xy_r)]
     visited = set()
     while len(queue) > 0:
-        xyz_i = queue.pop(0)
-        mask[xyz_i] = 1
-        for xyz_j in get_nbs(xyz_i, y_target.shape):
-            if xyz_j not in visited and y_target[xyz_r] == y_target[xyz_j]:
-                visited.add(xyz_j)
-                if y_mistakes[xyz_j] == 1:
-                    queue.append(xyz_j)
+        xy_i = queue.pop(0)
+        mask[xy_i] = 1
+        for xy_j in get_nbs(xy_i, y_target.shape):
+            if xy_j not in visited and y_target[xy_r] == y_target[xy_j]:
+                visited.add(xy_j)
+                if y_mistakes[xy_j] == 1:
+                    queue.append(xy_j)
                 elif not is_critical:
-                    if y_target[xyz_j] not in collisions.keys():
-                        collisions[y_target[xyz_j]] = y_minus_ccps[xyz_j]
-                    elif collisions[y_target[xyz_j]] != y_minus_ccps[xyz_j]:
+                    key = y_target[xy_j]
+                    if key not in collisions.keys():
+                        collisions[key] = y_minus_mistakes[xy_j]
+                    elif collisions[key] != y_minus_mistakes[xy_j]:
                         is_critical = True
-    if y_target[xyz_r] not in collisions.keys():
+    if y_target[xy_r] not in collisions.keys():
         is_critical = True
     return mask, visited, is_critical
 
 
-def get_false_negatives(y_target, y_pred):
+def false_negative_mask(y_target, y_pred):
     """
     Computes false negative mask.
 
     Parameters
     ----------
     y_target : numpy.ndarray
-        Groundtruth segmentation where each segment as a unique label.
+        Groundtruth segmentation where each segment has a unique label.
     y_pred : numpy.ndarray
-        Predicted segmentation where each segment as a unique label.
+        Predicted segmentation where each segment has a unique label.
 
     Returns
     -------
-    false_negatives : numpy.ndarray
-        Binary mask where false negative mistake is marked with a "1".
+    numpy.ndarray
+        Binary mask where false negative mistakes are marked with a "1".
 
     """
     false_negatives = y_target.astype(bool) * (1 - y_pred.astype(bool))
@@ -143,39 +146,44 @@ def get_false_negatives(y_target, y_pred):
 
 def get_foreground(img):
     """
-    Computes the foreground of an image.
+    Gets the set of foreground pixels from the given image.
 
     Parameters
     ----------
-
-    """
-    try:
-        x, y = np.nonzero(img)
-        return set((x[i], y[i]) for i in range(len(x)))
-    except:
-        return set()
-
-
-def get_nbs(xyz, shape):
-    """
-    Get all neighbors of a voxel in a 3D image with respect to 26-connectivity.
-
-    Parameters
-    ----------
-    xyz : tuple[int]
-        Coordinates of the voxel.
-    image_shape : tuple[int]
-        Tuple representing the shape of the 3D image.
+    img : numpy.ndarray
+        A 2D image to be searched.
 
     Returns
     -------
-    np.ndarray
-        Numpy array of shape (k, 2) with k <= 8 representing the coordinates of all 8 neighbors.
+    Set[Tuple[int]]
+        Set of tuples such that each is the coordinate of a pixel in the
+        foreground.
+
+    """
+    x, y = np.nonzero(img)
+    return set((x[i], y[i]) for i in range(len(x)))
+
+
+def get_nbs(xy, shape):
+    """
+    Gets all neighbors of a pixel in a 2D image using 8-connectivity.
+
+    Parameters
+    ----------
+    xy : Tuple[int]
+        Coordinates of the pixel for which neighbors are to be found.
+    shape : Tuple[int]
+        Shape of the image that pixel belongs to.
+
+    Returns
+    -------
+    Iterator[Tuple[int]]
+        Pixel coordinates of neighbors of the given pixel.
 
     """
     x_offsets, y_offsets = np.meshgrid([-1, 0, 1], [-1, 0, 1], indexing="ij")
     nbs = np.column_stack(
-        [(xyz[0] + y_offsets).ravel(), (xyz[1] + x_offsets).ravel()]
+        [(xy[0] + y_offsets).ravel(), (xy[1] + x_offsets).ravel()]
     )
     mask = np.all((nbs >= 0) & (nbs < np.array(shape)), axis=1)
     return map(tuple, list(nbs[mask]))
