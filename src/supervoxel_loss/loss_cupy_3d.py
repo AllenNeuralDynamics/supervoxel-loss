@@ -157,7 +157,7 @@ class SuperVoxelLoss(nn.Module):
     from both false negatives and false positives concurrently.
     """
     def __init__(self, alpha=0.5, beta=0.5, threshold=0.0, device="cuda",
-                 criterion=nn.BCEWithLogitsLoss, num_classes=2):
+                 criterion=nn.CrossEntropyLoss, num_classes=2):
         """
         Parameters:
            alpha (float): Weight for structure-aware (critical) loss.
