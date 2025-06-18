@@ -21,6 +21,8 @@ This repository implements a connectivity-preserving loss function that improves
 }
 ```
 
+💡 If you found this useful, please consider citing our work and ⭐ starring this repository — it helps others discover it!
+
 ## Method
 
 The loss computation consists of three main steps:
