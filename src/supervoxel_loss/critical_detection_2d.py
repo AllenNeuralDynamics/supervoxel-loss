@@ -30,7 +30,6 @@ def detect_critical_2d(y_target, y_pred):
     -------
     numpy.ndarray
         Binary mask where critical components are marked with a "1".
-
     """
     # Compute mistakes
     y_mistakes = get_false_negative_mask(y_target, y_pred)
@@ -75,7 +74,6 @@ def extract_component(y_target, y_mistakes, y_minus_mistakes, xy_r):
         Pixels visited during the BFS
     bool
         Indication of whether the connected component is critical.
-
     """
     mask = np.zeros(y_target.shape, dtype=bool)
     collisions = dict()
@@ -116,7 +114,6 @@ def get_false_negative_mask(y_target, y_pred):
     -------
     numpy.ndarray
         Binary mask where false negative mistakes are marked with a "1".
-
     """
     fn_mask = y_target.astype(bool) * (1 - y_pred.astype(bool))
     return fn_mask.astype(int)
@@ -136,7 +133,6 @@ def get_foreground(img):
     Set[Tuple[int]]
         Set of tuples such that each is the coordinate of a pixel in the
         foreground.
-
     """
     x, y = np.nonzero(img)
     return set((x[i], y[i]) for i in range(len(x)))
@@ -157,7 +153,6 @@ def get_nbs(xy, shape):
     -------
     Iterator[Tuple[int]]
         Pixel coordinates of neighbors of the given pixel.
-
     """
     x_offsets, y_offsets = np.meshgrid([-1, 0, 1], [-1, 0, 1], indexing="ij")
     nbs = np.column_stack(
