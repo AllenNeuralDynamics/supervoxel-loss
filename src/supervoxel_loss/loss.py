@@ -42,7 +42,6 @@ class SuperVoxelLoss(nn.Module):
     Supervoxel-based loss function for training neural networks to perform
     instance segmentation. This class implements a topology-aware loss
     function that penalizes both voxel- and structure-level mistakes.
-
     """
 
     def __init__(
@@ -55,33 +54,28 @@ class SuperVoxelLoss(nn.Module):
         threshold=0.0,
     ):
         """
-        Instantiates SuperVoxelLoss object with the given parameters.
+        Instantiates a SuperVoxelLoss object with the given parameters.
 
         Parameters
         ----------
         alpha : float, optional
             Scaling factor between 0 and 1 that determines the relative
-            importance of voxel- versus structure-level mistakes. The default
-            is 0.5.
+            importance of voxel- versus structure-level mistakes. Default is
+            0.5.
         beta : float, optional
             Scaling factor between 0 and 1 that determines the relative
-            importance of split versus merge mistakes. The default is 0.5.
+            importance of split versus merge mistakes. Default is 0.5.
         criterion : torch.nn.modules.loss, optional
             Loss function used to penalize voxel- and structure-level
-            mistakes. If provided, must set "reduction=None". The default is
+            mistakes. If provided, must set "reduction=None". Default is
             nn.BCEWithLogitsLoss.
         device : str, optional
-            Device on which to train model. The default is "cuda".
+            Device on which to train model. Default is "cuda".
         return_mask, bool, optional
             Indication of whether to return loss as an image mask. The default
             is False.
         threshold : float, optional
-            Theshold used to binarize predictions. The default is 0.0.
-
-        Returns
-        -------
-        None
-
+            Theshold used to binarize predictions. Default is 0.0.
         """
         # Call parent class
         super(SuperVoxelLoss, self).__init__()
@@ -114,7 +108,6 @@ class SuperVoxelLoss(nn.Module):
         torch.Tensor
             Scalar tensor representing the mean of the loss values across the
             batch.
-
         """
         # Initializations
         loss = self.criterion(preds, targets)
@@ -146,7 +139,6 @@ class SuperVoxelLoss(nn.Module):
         -------
         torch.Tensor
             Binary masks that identify critical components.
-
         """
         with ProcessPoolExecutor() as executor:
             # Assign processes
@@ -192,7 +184,6 @@ class SuperVoxelLoss(nn.Module):
             A tuple containing the following:
             - "process_id" : Index of the given example from a batch.
             - "mask" : Binary mask that identifies the critical components.
-
         """
         binarized_pred = (pred > self.threshold).astype(np.float32)
         critical_mask = self.detect_critical(target, binarized_pred)
@@ -212,7 +203,6 @@ class SuperVoxelLoss(nn.Module):
         -------
         torch.tensor
             Tensor on GPU.
-
         """
         arr[np.newaxis, ...] = arr
         arr = torch.from_numpy(arr)
@@ -225,7 +215,6 @@ class SuperVoxelLoss2D(SuperVoxelLoss):
     Subclass of SuperVoxelLoss designed for 2D segmentation tasks with
     additional functionality for computing and handling critical components
     in 2D images.
-
     """
 
     def __init__(
@@ -244,27 +233,22 @@ class SuperVoxelLoss2D(SuperVoxelLoss):
         ----------
         alpha : float, optional
             Scaling factor between 0 and 1 that determines the relative
-            importance of voxel- versus structure-level mistakes. The default
-            is 0.5.
+            importance of voxel- versus structure-level mistakes. Default is
+            0.5.
         beta : float, optional
             Scaling factor between 0 and 1 that determines the relative
-            importance of split versus merge mistakes. The default is 0.5.
+            importance of split versus merge mistakes. Default is 0.5.
         criterion : torch.nn.modules.loss, optional
             Loss function used to penalize voxel- and structure-level
-            mistakes. If provided, must set "reduction=None". The default is
+            mistakes. If provided, must set "reduction=None". Default is
             nn.BCEWithLogitsLoss.
         device : str, optional
-            Device on which to train model. The default is "cuda".
+            Device on which to train model. Default is "cuda".
         return_mask, bool, optional
-            Indication of whether to return loss as an image mask. The default
+            Indication of whether to return loss as an image mask. Default
             is False.
         threshold : float, optional
-            Theshold used to binarize predictions. The default is 0.5.
-
-        Returns
-        -------
-        None
-
+            Theshold used to binarize predictions. Default is 0.5.
         """
         # Call parent class
         super(SuperVoxelLoss2D, self).__init__(
@@ -280,7 +264,6 @@ class SuperVoxelLoss3D(SuperVoxelLoss):
     Subclass of SuperVoxelLoss designed for 3D segmentation tasks with
     additional functionality for computing and handling critical components
     in 3D images.
-
     """
 
     def __init__(
@@ -299,27 +282,22 @@ class SuperVoxelLoss3D(SuperVoxelLoss):
         ----------
         alpha : float, optional
             Scaling factor between 0 and 1 that determines the relative
-            importance of voxel- versus structure-level mistakes. The default
-            is 0.5.
+            importance of voxel- versus structure-level mistakes. Default is
+            0.5.
         beta : float, optional
             Scaling factor between 0 and 1 that determines the relative
-            importance of split versus merge mistakes. The default is 0.5.
+            importance of split versus merge mistakes. Default is 0.5.
         criterion : torch.nn.modules.loss, optional
             Loss function used to penalize voxel- and structure-level
-            mistakes. If provided, must set "reduction=None". The default is
+            mistakes. If provided, must set "reduction=None". Default is
             nn.BCEWithLogitsLoss.
         device : str, optional
-            Device on which to train model. The default is "cuda".
+            Device on which to train model. Default is "cuda".
         return_mask, bool, optional
-            Indication of whether to return loss as an image mask. The default
+            Indication of whether to return loss as an image mask. Default
             is False.
         threshold : float, optional
-            Theshold used to binarize predictions. The default is 0.5.
-
-        Returns
-        -------
-        None
-
+            Theshold used to binarize predictions. Default is 0.5.
         """
         # Call parent class
         super(SuperVoxelLoss3D, self).__init__(
