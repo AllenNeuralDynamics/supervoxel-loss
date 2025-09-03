@@ -39,7 +39,6 @@ class SuperVoxelAffinityLoss(nn.Module):
     """
     Supervoxel-based loss function for training neural networks to perform
     affinity-based instance segmentation.
-
     """
 
     def __init__(
@@ -61,24 +60,19 @@ class SuperVoxelAffinityLoss(nn.Module):
             [0, 0, 1]]).
         alpha : float, optional
             Scaling factor between 0 and 1 that determines the relative
-            importance of voxel- versus structure-level mistakes. The default
+            importance of voxel- versus structure-level mistakes. Default
             is 0.5.
         beta : float, optional
             Scaling factor between 0 and 1 that determines the relative
-            importance of split versus merge mistakes. The default is 0.5.
+            importance of split versus merge mistakes. Default is 0.5.
         criterion : torch.nn.modules.loss, optional
             Loss function used to penalize voxel- and structure-level
-            mistakes. If provided, must set "reduction=None". The default is
+            mistakes. If provided, must set "reduction=None". Default is
             nn.BCEWithLogitsLoss.
         device : str, optional
-            Device on which to train model. The default is "cuda".
+            Device on which to train model. Default is "cuda".
         threshold : float, optional
-            Theshold used to binarize predictions. The defulat is 0.5.
-
-        Returns
-        -------
-        None
-
+            Theshold used to binarize predictions. Defulat is 0.5.
         """
         # Call parent class
         super(SuperVoxelAffinityLoss, self).__init__()
@@ -111,7 +105,6 @@ class SuperVoxelAffinityLoss(nn.Module):
         -------
         torch.Tensor
             Computed loss for the given batch.
-
         """
         # Critical components
         pred_labels = self.affs_to_labels(pred_affs)
@@ -156,7 +149,6 @@ class SuperVoxelAffinityLoss(nn.Module):
         -------
         torch.Tensor
             Binary masks that identify critical components.
-
         """
         with ProcessPoolExecutor() as executor:
             # Assign processes
@@ -211,7 +203,6 @@ class SuperVoxelAffinityLoss(nn.Module):
             A tuple containing the following:
             - "process_id": Index of the given example from a batch.
             - "mask": Binary mask that identifies the critical components.
-
         """
         critical_mask = detect_critical(target, pred)
         scaling_factor = (1 - self.beta) if critical_type > 0 else self.beta
@@ -232,7 +223,6 @@ class SuperVoxelAffinityLoss(nn.Module):
         -------
         List[numpy.ndarray]
             Predicted labels for each example in the batch.
-
         """
         affs = np.array(affs.detach().cpu(), np.float32)
         labels = []
@@ -255,7 +245,6 @@ class SuperVoxelAffinityLoss(nn.Module):
         -------
         torch.tensor
             Tensor on GPU.
-
         """
         arr[np.newaxis, ...] = arr
         arr = torch.from_numpy(arr)
@@ -264,7 +253,6 @@ class SuperVoxelAffinityLoss(nn.Module):
     class Decoder(nn.Module):
         """
         Decoder module for processing edge affinities.
-
         """
 
         def __init__(self, edges):
@@ -276,11 +264,6 @@ class SuperVoxelAffinityLoss(nn.Module):
             edges : List[Tuple[int]]
                 Edge affinities learned by model (e.g. [(1, 0, 0]), (0, 1, 0),
                 (0, 0, 1)]).
-
-            Returns
-            -------
-            None
-
             """
             super(SuperVoxelAffinityLoss.Decoder, self).__init__()
             self.edges = list(edges)
@@ -301,7 +284,6 @@ class SuperVoxelAffinityLoss(nn.Module):
             -------
             torch.Tensor
                 Affinities corresponding to the i-th edge.
-
             """
             n_channels = affs.size(-4)
             assert n_channels == len(self.edges)
@@ -326,7 +308,6 @@ def get_aff(labels, edge):
     torch.Tensor
         Binary tensor, where each element indicates the affinity for each
         voxel based on the given edge.
-
     """
     o1, o2 = get_pair(labels, edge)
     ret = (o1 == o2) & (o1 != 0)
@@ -352,7 +333,6 @@ def get_pair(labels, edge):
         - "arr1": Subarray extracted based on the edge affinity.
         - "arr2": Subarray extracted based on the negative of the edge
                   affinity.
-
     """
     shape = labels.size()[-3:]
     edge = np.array(edge)
@@ -390,7 +370,6 @@ def get_pair_first(labels, edge):
     -------
     torch.Tensor
         Subarray of "labels" based on the given edge affinity.
-
     """
     shape = labels.size()[-3:]
     edge = np.array(edge)
