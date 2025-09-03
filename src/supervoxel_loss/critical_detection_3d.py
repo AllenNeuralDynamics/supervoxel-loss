@@ -33,7 +33,6 @@ def detect_critical_3d(y_target, y_pred):
     -------
     numpy.ndarray
         Binary mask where critical components are marked with a "1".
-
     """
     # Compute mistakes
     y_mistakes = false_negative_mask(y_target, y_pred)
@@ -80,7 +79,6 @@ def extract_component(y_target, y_mistakes, y_minus_mistakes, xyz_r):
         Voxels visited during the BFS
     bool
         Indication of whether the connected component is critical.
-
     """
     mask = np.zeros(y_target.shape, dtype=bool)
     collisions = dict()
@@ -121,7 +119,6 @@ def false_negative_mask(y_target, y_pred):
     -------
     numpy.ndarray
         Binary mask where false negative mistakes are marked with a "1".
-
     """
     false_negatives = y_target.astype(bool) * (1 - y_pred.astype(bool))
     return false_negatives.astype(int)
@@ -141,7 +138,6 @@ def get_foreground(img):
     Set[Tuple[int]]
         Set of tuples such that each is the coordinate of a voxel in the
         foreground.
-
     """
     x, y, z = np.nonzero(img)
     return set((x[i], y[i], z[i]) for i in range(len(x)))
@@ -160,9 +156,8 @@ def get_nbs(xyz, shape):
 
     Returns
     -------
-    np.ndarray
+    numpy.ndarray
         Voxel coordinates of neighbors of the given voxel.
-
     """
     x_offsets, y_offsets, z_offsets = np.meshgrid(
         [-1, 0, 1], [-1, 0, 1], [-1, 0, 1], indexing="ij"
