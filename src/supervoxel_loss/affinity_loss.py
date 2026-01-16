@@ -183,7 +183,7 @@ class SuperVoxelAffinityLoss(nn.Module):
 
     def get_critical_mask(self, pred, target, process_id, critical_type):
         """
-        Compute the critical mask for the given examples.
+        Computes the critical mask for the given examples.
 
         Parameters
         ----------
